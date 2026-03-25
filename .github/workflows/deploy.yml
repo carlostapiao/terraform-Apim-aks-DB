@@ -1,0 +1,57 @@
+name: Deploy to AKS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+
+  ACR_NAME: carlos69lamejor
+  IMAGE_NAME: api-productos
+  RESOURCE_GROUP: rg-k8s-lab
+  CLUSTER_NAME: aks-lab
+
+jobs:
+
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Login Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Login ACR
+      run: az acr login --name $ACR_NAME
+
+    - name: Build Image
+      run: |
+        docker build \
+        -t $ACR_NAME.azurecr.io/$IMAGE_NAME:v1 \
+        ./app
+
+    - name: Push Image
+      run: |
+        docker push \
+        $ACR_NAME.azurecr.io/$IMAGE_NAME:v1
+
+    - name: Get AKS Credentials
+      run: |
+        az aks get-credentials \
+        --resource-group $RESOURCE_GROUP \
+        --name $CLUSTER_NAME \
+        --overwrite-existing
+
+    - name: Deploy to AKS
+      run: |
+        kubectl apply -f k8s/secret.yaml
+        kubectl apply -f k8s/deployment.yaml
+        kubectl apply -f k8s/service.yaml
+        kubectl apply -f k8s/ingress.yaml
